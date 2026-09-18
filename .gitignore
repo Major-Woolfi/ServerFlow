@@ -1,0 +1,17 @@
+# --- Python ---
+__pycache__/
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+*.pyc
+*.pyo
+
+# --- Environment ---
+.env
+
+# --- Secrets ---
+data/servers/
+ssh/
+
+# --- Logs ---
+logs/
