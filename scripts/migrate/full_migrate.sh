@@ -1,8 +1,6 @@
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-source "${PROJECT_ROOT}/scripts/common/logger.sh"
+source "${PROJECT_ROOT}/scripts/common/bootstrap.sh"
 source "${PROJECT_ROOT}/scripts/common/validate.sh"
 source "${PROJECT_ROOT}/scripts/common/ssh.sh"
 source "${PROJECT_ROOT}/scripts/migrate/precheck.sh"
@@ -63,7 +61,7 @@ function full_migrate() {
             new_ip=$(dig +short "$new_host" 2>/dev/null | head -1 || echo "")
 
             if [[ -n "$old_ip" && -n "$new_ip" ]]; then
-                python3 "${PROJECT_ROOT}/scripts/dns/update_records.py" "$old_ip" "$new_ip"
+                python3 "${project_win}/scripts/dns/update_records.py" "$old_ip" "$new_ip"
             else
                 log_warn "Could not resolve IPs. Run DNS update manually."
             fi
@@ -73,4 +71,6 @@ function full_migrate() {
     log_success "=== Migration of ${old_name} to ${new_name} complete ==="
 }
 
-full_migrate "$@"
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    full_migrate "$@"
+fi

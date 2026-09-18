@@ -33,6 +33,7 @@ function ssh_init() {
         local default_key="${PROJECT_ROOT:-$(pwd)}/ssh/${SSH_NAME}.key"
         if [[ -f "$default_key" ]]; then
             key="$default_key"
+            log_info "Auto-detected SSH key: ${key}"
         fi
     fi
 
@@ -69,11 +70,7 @@ function ssh_run_file() {
         return 1
     fi
     echo "[ssh] Sending ${script} to ${SSH_NAME:-unknown}"
-    if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "win32" ]]; then
-        eval "${SSH_EXEC}" "'$(cat "${script}")'"
-    else
-        eval "${SSH_EXEC}" "'$(cat "${script}")'"
-    fi
+    eval "${SSH_EXEC}" "'$(cat "${script}")'"
 }
 
 function ssh_test() {
@@ -82,4 +79,31 @@ function ssh_test() {
         return 1
     fi
     eval "${SSH_EXEC}" "'echo SSH_OK'" 2>/dev/null
+}
+
+function ssh_detect_os() {
+    if [[ -z "${SSH_EXEC:-}" ]]; then
+        echo "unknown"
+        return 1
+    fi
+    eval "${SSH_EXEC}" -- "uname -s" 2>/dev/null | tr -d '[:space:]'
+}
+
+function ssh_detect_panel_version() {
+    local panel="$1"
+    if [[ -z "${SSH_EXEC:-}" ]]; then
+        echo "unknown"
+        return 1
+    fi
+    case "$panel" in
+        3x-ui)
+            eval "${SSH_EXEC}" -- "x-ui version 2>/dev/null || x-ui getVersion 2>/dev/null || echo unknown" 2>/dev/null | tr -d '[:space:]'
+            ;;
+        aapanel)
+            eval "${SSH_EXEC}" -- "python3 -c \"import json; f=open('/www/server/panel/data/info.json'); print(json.load(f).get('version','unknown'))\" 2>/dev/null || echo unknown" 2>/dev/null | tr -d '[:space:]'
+            ;;
+        *)
+            echo "unknown"
+            ;;
+    esac
 }

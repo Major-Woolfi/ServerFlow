@@ -1,8 +1,6 @@
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-source "${PROJECT_ROOT}/scripts/common/logger.sh"
+source "${PROJECT_ROOT}/scripts/common/bootstrap.sh"
 source "${PROJECT_ROOT}/scripts/common/validate.sh"
 source "${PROJECT_ROOT}/scripts/common/ssh.sh"
 
@@ -61,4 +59,6 @@ function precheck() {
     return 0
 }
 
-precheck "$@"
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    precheck "$@"
+fi

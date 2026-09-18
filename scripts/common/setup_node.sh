@@ -2,7 +2,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-source "${PROJECT_ROOT}/scripts/common/logger.sh"
+
+source "${PROJECT_ROOT}/scripts/common/bootstrap.sh"
 source "${PROJECT_ROOT}/scripts/common/validate.sh"
 source "${PROJECT_ROOT}/scripts/common/ssh.sh"
 source "${PROJECT_ROOT}/scripts/common/install.sh"
@@ -21,8 +22,9 @@ function setup_node() {
         exit 1
     fi
 
+    log_init "$sname"
+
     if [[ $STANDALONE -eq 1 ]]; then
-        log_init "$sname"
         log_info "=== Setting up NODE (standalone): ${sname} ==="
 
         install_3xui_remote "$shost" "$suser" "$spass" "$skey" || { log_error "3X-UI install failed"; exit 1; }
@@ -41,7 +43,6 @@ function setup_node() {
         return 0
     fi
 
-    log_init "$sname"
     log_info "=== Setting up NODE: ${sname} (${shost}) ==="
 
     if ! validate_ip "$shost" && ! validate_hostname "$shost"; then
@@ -74,4 +75,6 @@ function setup_node() {
     log_success "=== Node ${sname} setup complete ==="
 }
 
-setup_node "$@"
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    setup_node "$@"
+fi

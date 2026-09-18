@@ -2,19 +2,13 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-source "${PROJECT_ROOT}/scripts/common/logger.sh"
+
+source "${PROJECT_ROOT}/scripts/common/bootstrap.sh"
 source "${PROJECT_ROOT}/scripts/common/validate.sh"
 source "${PROJECT_ROOT}/scripts/common/ssh.sh"
 source "${PROJECT_ROOT}/scripts/common/install.sh"
 source "${PROJECT_ROOT}/scripts/common/config_3xui.sh"
 source "${PROJECT_ROOT}/scripts/common/config_aapanel.sh"
-
-STANDALONE=0
-if [[ -d /etc/x-ui/ ]]; then
-    STANDALONE=1
-    PROJECT_ROOT="$(pwd)"
-    log_info "Standalone mode: running on target server"
-fi
 
 function setup_main_interactive() {
     local sname="${1:-}"
@@ -28,8 +22,9 @@ function setup_main_interactive() {
         exit 1
     fi
 
+    log_init "$sname"
+
     if [[ $STANDALONE -eq 1 ]]; then
-        log_init "$sname"
         log_info "=== Configuring MAIN (standalone): ${sname} ==="
 
         install_3xui_remote "$shost" "$suser" "$spass" "$skey" || { log_error "3X-UI install failed"; exit 1; }
@@ -44,10 +39,24 @@ function setup_main_interactive() {
         return 0
     fi
 
-    log_init "$sname"
     log_info "=== Configuring MAIN server: ${sname} (${shost}) ==="
 
+    if ! validate_ip "$shost" && ! validate_hostname "$shost"; then
+        log_error "Invalid host: $shost"
+        exit 1
+    fi
+
+    if ! check_host_reachable "$shost" 22; then
+        log_error "Host not reachable: $shost"
+        exit 1
+    fi
+
     install_3xui_remote "$shost" "$suser" "$spass" "$skey"
+    if [[ $? -ne 0 ]]; then
+        log_error "3X-UI install failed, aborting"
+        exit 1
+    fi
+
     config_3xui_remote "$shost" "$suser" "$spass" "$skey"
 
     install_aapanel_remote "$shost" "$suser" "$spass" "$skey"
@@ -58,4 +67,6 @@ function setup_main_interactive() {
     log_success "=== Main server ${sname} configured ==="
 }
 
-setup_main_interactive "$@"
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    setup_main_interactive "$@"
+fi

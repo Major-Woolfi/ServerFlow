@@ -18,4 +18,8 @@ if "%BASH_PATH%"=="" (
 )
 
 echo Starting ServerFlow...
-start "" "%BASH_PATH%" --login "%SCRIPT_DIR%LAUNCHER.sh"
+"%BASH_PATH%" "%SCRIPT_DIR%LAUNCHER.sh"
+if %ERRORLEVEL% neq 0 (
+    echo Script failed. Press any key...
+    pause >nul
+)

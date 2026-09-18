@@ -1,10 +1,7 @@
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-source "${PROJECT_ROOT}/scripts/common/logger.sh"
+source "${PROJECT_ROOT}/scripts/common/bootstrap.sh"
 source "${PROJECT_ROOT}/scripts/common/validate.sh"
-source "${PROJECT_ROOT}/scripts/common/ssh.sh"
 
 function backup_all() {
     local sname="${1:-}"
@@ -47,4 +44,6 @@ function backup_all() {
     log_info "Download manually: scp ${suser}@${shost}:${remote_backup} ./"
 }
 
-backup_all "$@"
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    backup_all "$@"
+fi

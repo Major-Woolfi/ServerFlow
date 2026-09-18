@@ -3,16 +3,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
-source "${PROJECT_ROOT}/scripts/common/logger.sh"
-source "${PROJECT_ROOT}/scripts/common/validate.sh"
-source "${PROJECT_ROOT}/scripts/common/ssh.sh"
-
-STANDALONE=0
-if [[ -d /etc/x-ui/ ]]; then
-    STANDALONE=1
-    PROJECT_ROOT="$(pwd)"
-    log_info "Standalone mode: running on target server"
-fi
+source "${PROJECT_ROOT}/scripts/common/bootstrap.sh"
 
 function config_3xui_remote() {
     local host="$1"
@@ -28,23 +19,32 @@ function config_3xui_remote() {
 
     log_info "Configuring 3X-UI on ${host}"
 
-    ssh_run "x-ui register" 2>/dev/null || {
-        log_warn "x-ui register may have already been run"
-    }
+    local current_port="2053"
+    if [[ $STANDALONE -eq 0 ]]; then
+        current_port=$(ssh_run "x-ui getPort 2>/dev/null" 2>/dev/null || echo "2053")
+    fi
+    current_port="${current_port:-2053}"
 
-    local current_port
-    current_port=$(ssh_run "x-ui getPort 2>/dev/null" 2>/dev/null || echo "2053")
     log_info "Current 3X-UI port: ${current_port}"
-
     read -rp "Enter panel port [${current_port}]: " new_port
     new_port="${new_port:-${current_port}}"
 
-    read -rp "Admin username: " admin_user
-    read -rsp "Admin password: " admin_pass
-    echo ""
+    local admin_user="admin"
+    local admin_pass=""
+    if [[ $STANDALONE -eq 0 ]]; then
+        admin_user=$(ssh_run "x-ui getAdminUser 2>/dev/null" 2>/dev/null || echo "admin")
+    fi
+
+    if [[ -z "$admin_pass" ]]; then
+        read -rsp "Admin password [leave empty to keep]: " admin_pass
+        echo ""
+    fi
 
     ssh_run "x-ui setPort ${new_port}" 2>/dev/null || log_warn "Could not set port via CLI"
-    ssh_run "x-ui register '${admin_user}' '${admin_pass}'" 2>/dev/null || log_warn "Could not set credentials via CLI"
+
+    if [[ -n "$admin_pass" ]]; then
+        ssh_run "x-ui register '${admin_user}' '${admin_pass}'" 2>/dev/null || log_warn "Could not set credentials via CLI"
+    fi
 
     local cert_choice=""
     while [[ "$cert_choice" != "1" && "$cert_choice" != "2" && "$cert_choice" != "3" ]]; do
@@ -101,11 +101,6 @@ function save_secrets_3xui() {
 
     local secrets_dir="${PROJECT_ROOT}/data/servers"
     mkdir -p "$secrets_dir"
-    local secrets_file="${secrets_dir}/${server_name}.json"
-
-    if [[ ! -f "$secrets_file" ]]; then
-        echo "{}" > "$secrets_file"
-    fi
 
     local panel_url=""
     local panel_port=""
@@ -135,31 +130,49 @@ function save_secrets_3xui() {
         key_path="ssh/${server_name}.key"
     fi
 
-    python3 -c "
-import json
-sf = '${secrets_file}'
-with open(sf) as f:
-    data = json.load(f)
-data['ssh_user'] = '${user}'
-data['ssh_host'] = '${host}'
-if '${pass}':
-    data['ssh_password'] = '${pass}'
-if '${key_path}':
-    data['ssh_key_path'] = '${key_path}'
-data['panels'] = data.get('panels', {})
-data['panels']['3x-ui'] = {
-    'url': '${panel_url}',
-    'port': '${panel_port}',
-    'admin_user': '${panel_user}',
-    'admin_pass': '${panel_pass}',
+    SF_SERVER_NAME="$server_name" \
+    SF_SECRETS_DIR="$secrets_dir" \
+    SF_HOST="$host" \
+    SF_USER="$user" \
+    SF_KEY_PATH="${key_path:-}" \
+    SF_PANEL_URL="$panel_url" \
+    SF_PANEL_PORT="$panel_port" \
+    SF_PANEL_USER="$panel_user" \
+    SSH_PASS="$pass" \
+    PANEL_PASS="$panel_pass" \
+    python3 << 'PYEOF'
+import json, os, sys
+
+server_name = os.environ.get("SF_SERVER_NAME", "")
+secrets_dir = os.environ.get("SF_SECRETS_DIR", "")
+host = os.environ.get("SF_HOST", "")
+user = os.environ.get("SF_USER", "")
+key_path = os.environ.get("SF_KEY_PATH", "")
+panel_url = os.environ.get("SF_PANEL_URL", "")
+panel_port = os.environ.get("SF_PANEL_PORT", "")
+panel_user = os.environ.get("SF_PANEL_USER", "")
+
+secrets_file = os.path.join(secrets_dir, f"{server_name}.json")
+data = {}
+if os.path.exists(secrets_file):
+    with open(secrets_file) as f:
+        data = json.load(f)
+
+data["ssh_user"] = user
+data["ssh_host"] = host
+if os.environ.get("SSH_PASS"):
+    data["ssh_password"] = os.environ["SSH_PASS"]
+if key_path:
+    data["ssh_key_path"] = key_path
+data["panels"] = data.get("panels", {})
+data["panels"]["3x-ui"] = {
+    "url": panel_url,
+    "port": panel_port,
+    "admin_user": panel_user,
+    "admin_pass": os.environ.get("PANEL_PASS", ""),
 }
-with open(sf, 'w') as f:
+with open(secrets_file, "w") as f:
     json.dump(data, f, indent=2)
-"
-    log_info "Secrets saved to ${secrets_file}"
-}
-with open(sf, 'w') as f:
-    json.dump(data, f, indent=2)
-"
-    log_info "Secrets saved to ${secrets_file}"
+PYEOF
+    log_info "Secrets saved to ${secrets_dir}/${server_name}.json"
 }

@@ -1,11 +1,6 @@
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-source "${PROJECT_ROOT}/scripts/common/logger.sh"
-source "${PROJECT_ROOT}/scripts/common/validate.sh"
-source "${PROJECT_ROOT}/scripts/common/ssh.sh"
-source "${PROJECT_ROOT}/scripts/main/update_main.sh"
+source "${PROJECT_ROOT}/scripts/common/bootstrap.sh"
 
 function update_main() {
     local sname="${1:-}"
@@ -53,4 +48,6 @@ function update_main() {
     log_success "=== Update complete for main ${sname} ==="
 }
 
-update_main "$@"
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    update_main "$@"
+fi

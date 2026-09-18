@@ -2,9 +2,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-source "${PROJECT_ROOT}/scripts/common/logger.sh"
-source "${PROJECT_ROOT}/scripts/common/validate.sh"
-source "${PROJECT_ROOT}/scripts/common/ssh.sh"
+
+source "${PROJECT_ROOT}/scripts/common/bootstrap.sh"
 
 function add_server_interactive() {
     echo "=== Add New Server ==="
@@ -15,11 +14,9 @@ function add_server_interactive() {
         exit 1
     fi
 
-    if [[ -f "${PROJECT_ROOT}/config/servers.json" ]]; then
-        if python3 -c "import json,sys; d=json.load(open('${PROJECT_ROOT}/config/servers.json')); sys.exit(0 if '${sname}' in d else 1)" 2>/dev/null; then
-            log_error "Server '${sname}' already exists"
-            exit 1
-        fi
+    if server_exists "$sname"; then
+        log_error "Server '${sname}' already exists"
+        exit 1
     fi
 
     read -rp "Server host (IP or domain): " shost
@@ -37,72 +34,98 @@ function add_server_interactive() {
     read -rp "SSH user [root]: " suser
     suser="${suser:-root}"
 
-    read -rp "Use SSH key? (y/n): " use_key
     local ssh_pass="" ssh_key=""
+    read -rp "Use SSH key? (y/n) [n]: " use_key
     if [[ "$use_key" =~ ^[Yy] ]]; then
-        read -rp "Path to SSH key: " ssh_key
-        if [[ ! -f "$ssh_key" ]]; then
-            log_error "Key file not found: $ssh_key"
-            exit 1
+        local default_key="${PROJECT_ROOT}/ssh/${sname}.key"
+        if [[ -f "$default_key" ]]; then
+            ssh_key="ssh/${sname}.key"
+            log_info "Using existing key: ${default_key}"
+        else
+            read -rp "Path to SSH key: " key_path
+            if [[ ! -f "$key_path" ]]; then
+                log_error "Key file not found: $key_path"
+                exit 1
+            fi
+            local ssh_dir="${PROJECT_ROOT}/ssh"
+            mkdir -p "$ssh_dir"
+            cp "$key_path" "${ssh_dir}/${sname}.key"
+            ssh_key="ssh/${sname}.key"
+            log_success "Copied key to ${ssh_dir}/${sname}.key"
         fi
-        local ssh_dir="${PROJECT_ROOT}/ssh"
-        mkdir -p "$ssh_dir"
-        cp "$ssh_key" "${ssh_dir}/${sname}.key"
-        ssh_key="ssh/${sname}.key"
     else
         read -rsp "SSH password: " ssh_pass
         echo ""
     fi
 
-    read -rp "Has 3X-UI panel? (y/n): " has_3xui
-    read -rp "Has aaPanel? (y/n): " has_aapanel
+    local has_3xui="n"
+    local has_aapanel="n"
+    read -rp "Has 3X-UI panel? (y/n) [n]: " has_3xui
+    read -rp "Has aaPanel? (y/n) [n]: " has_aapanel
 
-    local tmp_secret
-    tmp_secret=$(mktemp)
-    python3 -c "
-import json
-secrets = {
-    'ssh_user': '${suser}',
-    'ssh_host': '${shost}',
-}
-if '${ssh_pass}':
-    secrets['ssh_password'] = '${ssh_pass}'
-if '${ssh_key}':
-    secrets['ssh_key_path'] = '${ssh_key}'
-panels = {}
-if '${has_3xui}' in ('y','Y','yes'):
-    panels['3x-ui'] = {}
-if '${has_aapanel}' in ('y','Y','yes'):
-    panels['aaPanel'] = {}
-secrets['panels'] = panels
-with open('${tmp_secret}', 'w') as f:
-    json.dump(secrets, f, indent=2)
-"
-
-    python3 -c "
+    SF_PROJECT="$PROJECT_ROOT" \
+    SF_SERVER="$sname" \
+    SF_USER="$suser" \
+    SF_HOST="$shost" \
+    SF_PASS="$ssh_pass" \
+    SF_KEY="$ssh_key" \
+    SF_TYPE="$stype" \
+    SF_HAS_3XUI="$has_3xui" \
+    SF_HAS_AAPANEL="$has_aapanel" \
+    python3 << 'PYEOF'
 import json, os
-config_path = '${PROJECT_ROOT}/config/servers.json'
-secret_path = '${PROJECT_ROOT}/data/servers/${sname}.json'
+
+project = os.environ.get("SF_PROJECT", "")
+server_name = os.environ.get("SF_SERVER", "")
+ssh_user = os.environ.get("SF_USER", "root")
+ssh_host = os.environ.get("SF_HOST", "")
+ssh_pass = os.environ.get("SF_PASS", "")
+ssh_key = os.environ.get("SF_KEY", "")
+server_type = os.environ.get("SF_TYPE", "node")
+has_3xui = os.environ.get("SF_HAS_3XUI", "n") in ("y", "Y", "yes")
+has_aapanel = os.environ.get("SF_HAS_AAPANEL", "n") in ("y", "Y", "yes")
+
+secret_path = os.path.join(project, "data", "servers", f"{server_name}.json")
+config_path = os.path.join(project, "config", "servers.json")
+
+data = {
+    "type": server_type,
+    "host": ssh_host,
+    "ssh_user": ssh_user,
+}
+if ssh_pass:
+    data["ssh_password"] = ssh_pass
+if ssh_key:
+    data["ssh_key_path"] = ssh_key
+
+panels = {}
+if has_3xui:
+    panels["3x-ui"] = {}
+if has_aapanel:
+    panels["aaPanel"] = {}
+data["panels"] = panels
+
 config = {}
 if os.path.exists(config_path):
     with open(config_path) as f:
         config = json.load(f)
-config['${sname}'] = {
-    'type': '${stype}',
-    'host': '${shost}',
-    'ssh_user': '${suser}',
+config[server_name] = {
+    "type": server_type,
+    "host": ssh_host,
+    "ssh_user": ssh_user,
 }
-with open(config_path, 'w') as f:
+
+os.makedirs(os.path.dirname(secret_path), exist_ok=True)
+with open(config_path, "w") as f:
     json.dump(config, f, indent=2)
-os.makedirs('${PROJECT_ROOT}/data/servers', exist_ok=True)
-with open(secret_path, 'w') as f:
-    f.write(open('${tmp_secret}').read())
-"
-    rm -f "$tmp_secret"
+with open(secret_path, "w") as f:
+    json.dump(data, f, indent=2)
+PYEOF
 
     log_success "Server '${sname}' added successfully"
-    log_info "Secrets saved to: ${PROJECT_ROOT}/data/servers/${sname}.json"
-    log_info "Config updated in: ${PROJECT_ROOT}/config/servers.json"
+    log_info "Config: ${PROJECT_ROOT}/data/servers/${sname}.json"
 }
 
-add_server_interactive "$@"
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    add_server_interactive "$@"
+fi

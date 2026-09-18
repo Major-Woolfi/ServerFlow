@@ -1,19 +1,6 @@
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-
-source "${PROJECT_ROOT}/scripts/common/logger.sh"
-source "${PROJECT_ROOT}/scripts/common/validate.sh"
-source "${PROJECT_ROOT}/scripts/common/ssh.sh"
-
-STANDALONE=0
-
-if [[ -d /etc/x-ui/ ]]; then
-    STANDALONE=1
-    PROJECT_ROOT="$(pwd)"
-    log_info "Standalone mode: running on target server"
-fi
+source "${PROJECT_ROOT}/scripts/common/bootstrap.sh"
 
 function install_3xui_remote() {
     local host="$1"

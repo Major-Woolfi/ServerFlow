@@ -2,13 +2,10 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-source "${PROJECT_ROOT}/scripts/common/logger.sh"
+
+source "${PROJECT_ROOT}/scripts/common/bootstrap.sh"
 source "${PROJECT_ROOT}/scripts/common/validate.sh"
 source "${PROJECT_ROOT}/scripts/common/ssh.sh"
-source "${PROJECT_ROOT}/scripts/common/install.sh"
-source "${PROJECT_ROOT}/scripts/common/config_3xui.sh"
-source "${PROJECT_ROOT}/scripts/common/config_aapanel.sh"
-source "${PROJECT_ROOT}/scripts/common/setup_node.sh"
 
 function update_node() {
     local sname="${1:-}"
@@ -47,4 +44,6 @@ function update_node() {
     log_success "=== Update complete for node ${sname} ==="
 }
 
-update_node "$@"
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    update_node "$@"
+fi
