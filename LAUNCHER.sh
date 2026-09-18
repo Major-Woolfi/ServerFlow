@@ -4,11 +4,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="${SCRIPT_DIR}"
 
 source "${PROJECT_ROOT}/scripts/common/bootstrap.sh"
-source "${PROJECT_ROOT}/scripts/common/validate.sh"
-source "${PROJECT_ROOT}/scripts/common/ssh.sh"
-source "${PROJECT_ROOT}/scripts/common/install.sh"
-source "${PROJECT_ROOT}/scripts/common/config_3xui.sh"
-source "${PROJECT_ROOT}/scripts/common/config_aapanel.sh"
 source "${PROJECT_ROOT}/scripts/common/setup_node.sh"
 source "${PROJECT_ROOT}/scripts/common/setup_main.sh"
 source "${PROJECT_ROOT}/scripts/admin/add_server.sh"
@@ -17,6 +12,7 @@ source "${PROJECT_ROOT}/scripts/migrate/full_migrate.sh"
 source "${PROJECT_ROOT}/scripts/main/update_main.sh"
 source "${PROJECT_ROOT}/scripts/main/backup_all.sh"
 source "${PROJECT_ROOT}/scripts/main/restore_all.sh"
+source "${PROJECT_ROOT}/scripts/common/update_node.sh"
 
 function show_menu() {
     echo ""
@@ -27,9 +23,10 @@ function show_menu() {
     echo "4) Add server to database"
     echo "5) Update all servers"
     echo "6) Update single server"
-    echo "7) Backup main server"
-    echo "8) Restore main server"
-    echo "9) Exit"
+    echo "7) Update node"
+    echo "8) Backup main server"
+    echo "9) Restore main server"
+    echo "10) Exit"
     echo ""
 }
 
@@ -70,12 +67,19 @@ function main() {
                 ;;
             7)
                 read -rp "Server name: " sname
+                read -rp "Server host (IP/domain): " shost
+                read -rp "SSH user [root]: " suser
+                suser="${suser:-root}"
+                update_node "$sname" "$shost" "$suser"
+                ;;
+            8)
+                read -rp "Server name: " sname
                 read -rp "Server host: " shost
                 read -rp "SSH user [root]: " suser
                 suser="${suser:-root}"
                 backup_all "$sname" "$shost" "$suser"
                 ;;
-            8)
+            9)
                 read -rp "Server name: " sname
                 read -rp "Server host: " shost
                 read -rp "SSH user [root]: " suser
@@ -83,7 +87,7 @@ function main() {
                 read -rp "Backup file path: " backup_file
                 restore_all "$sname" "$shost" "$suser" "" "$backup_file"
                 ;;
-            9)
+            10)
                 echo "Goodbye"
                 exit 0
                 ;;

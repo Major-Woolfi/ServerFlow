@@ -1,5 +1,4 @@
-
-LOG_DIR="${LOG_DIR:-${PROJECT_ROOT:-./logs}/logs}"
+LOG_DIR="${LOG_DIR:-${PROJECT_ROOT:-.}/logs}"
 CURRENT_LOG_FILE=""
 
 function log_init() {

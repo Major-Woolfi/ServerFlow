@@ -1,7 +1,6 @@
 set -euo pipefail
 
 source "${PROJECT_ROOT}/scripts/common/bootstrap.sh"
-source "${PROJECT_ROOT}/scripts/common/validate.sh"
 
 function backup_all() {
     local sname="${1:-}"

@@ -1,14 +1,7 @@
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-
 source "${PROJECT_ROOT}/scripts/common/bootstrap.sh"
-source "${PROJECT_ROOT}/scripts/common/validate.sh"
-source "${PROJECT_ROOT}/scripts/common/ssh.sh"
-source "${PROJECT_ROOT}/scripts/common/install.sh"
-source "${PROJECT_ROOT}/scripts/common/config_3xui.sh"
-source "${PROJECT_ROOT}/scripts/common/config_aapanel.sh"
+source "${PROJECT_ROOT}/scripts/common/setup_common.sh"
 
 function setup_node() {
     local sname="${1:-}"
@@ -37,7 +30,7 @@ function setup_node() {
             config_aapanel_remote "$shost" "$suser" "$spass" "$skey"
         fi
 
-        save_secrets_3xui "$sname" "$shost" "$suser" "$spass" "$skey"
+        setup_server_save_secrets "$sname" "$shost" "$suser" "$spass" "$skey"
 
         log_success "=== Node ${sname} setup complete ==="
         return 0
@@ -45,23 +38,9 @@ function setup_node() {
 
     log_info "=== Setting up NODE: ${sname} (${shost}) ==="
 
-    if ! validate_ip "$shost" && ! validate_hostname "$shost"; then
-        log_error "Invalid host: $shost"
-        exit 1
-    fi
+    setup_server_checks "$shost" || exit 1
 
-    if ! check_host_reachable "$shost" 22; then
-        log_error "Host not reachable: $shost"
-        exit 1
-    fi
-
-    install_3xui_remote "$shost" "$suser" "$spass" "$skey"
-    if [[ $? -ne 0 ]]; then
-        log_error "3X-UI install failed, aborting"
-        exit 1
-    fi
-
-    config_3xui_remote "$shost" "$suser" "$spass" "$skey"
+    setup_server_install "$shost" "$suser" "$spass" "$skey" || exit 1
 
     local has_aapanel="n"
     read -rp "Install aaPanel on this node? (y/n): " has_aapanel
@@ -70,7 +49,7 @@ function setup_node() {
         config_aapanel_remote "$shost" "$suser" "$spass" "$skey"
     fi
 
-    save_secrets_3xui "$sname" "$shost" "$suser" "$spass" "$skey"
+    setup_server_save_secrets "$sname" "$shost" "$suser" "$spass" "$skey"
 
     log_success "=== Node ${sname} setup complete ==="
 }

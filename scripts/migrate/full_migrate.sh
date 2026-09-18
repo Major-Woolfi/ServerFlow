@@ -1,11 +1,6 @@
 set -euo pipefail
 
 source "${PROJECT_ROOT}/scripts/common/bootstrap.sh"
-source "${PROJECT_ROOT}/scripts/common/validate.sh"
-source "${PROJECT_ROOT}/scripts/common/ssh.sh"
-source "${PROJECT_ROOT}/scripts/migrate/precheck.sh"
-source "${PROJECT_ROOT}/scripts/migrate/sync_data.sh"
-source "${PROJECT_ROOT}/scripts/migrate/update_certs.sh"
 
 function full_migrate() {
     local old_name="${1:-}"
@@ -61,7 +56,7 @@ function full_migrate() {
             new_ip=$(dig +short "$new_host" 2>/dev/null | head -1 || echo "")
 
             if [[ -n "$old_ip" && -n "$new_ip" ]]; then
-                python3 "${project_win}/scripts/dns/update_records.py" "$old_ip" "$new_ip"
+                python3 "${PROJECT_ROOT}/scripts/dns/update_records.py" "$old_ip" "$new_ip"
             else
                 log_warn "Could not resolve IPs. Run DNS update manually."
             fi

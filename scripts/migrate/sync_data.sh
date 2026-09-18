@@ -1,8 +1,6 @@
 set -euo pipefail
 
 source "${PROJECT_ROOT}/scripts/common/bootstrap.sh"
-source "${PROJECT_ROOT}/scripts/common/validate.sh"
-source "${PROJECT_ROOT}/scripts/common/ssh.sh"
 
 function sync_data() {
     local old_host="$1"
